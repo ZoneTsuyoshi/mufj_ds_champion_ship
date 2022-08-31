@@ -1,0 +1,50 @@
+{
+    "train":{
+        "valid_rate":0.25,
+        "kfolds":2,
+        "epoch":5,
+        "batch_size":16,
+        "warmup_rate":100,
+        "gpu":1,
+        "seed":0,
+        "weight":false,
+        "design_var":["goal", "duration", "category1"],
+        "da":"m",
+        "mask_ratio":0.1,
+        "using_mlm":false,
+        "mlm_id":6,
+        "adv_start_epoch":1.0
+    },
+    
+    "network":{
+        "model_name":"xlm-roberta-base",
+        "hidden_dim":50,
+        "hidden_layers":2,
+        "activation_class":"LeakyReLU",
+        "loss":"FL",
+        "gamma":2,
+        "alpha":2,
+        "lb_smooth":0.1,
+        "lr":2e-5,
+        "dropout":0.1,
+        "weight_decay":0.01,
+        "gradient_clipping":1,
+        "beta1":0.9,
+        "beta2":0.999,
+        "epsilon":1e-6,
+        "scheduler":"linear",
+        "at":null,
+        "adv_lr":1.0,
+        "adv_eps":1e-3,
+        "adv_steps":1
+    },
+    
+    "test":{
+        "ckpt": "last",
+        "all_weight": 2
+    },
+    
+    "exp":{
+        "dirpath":null
+    }
+}

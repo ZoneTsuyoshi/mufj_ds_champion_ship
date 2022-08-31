@@ -1,8 +1,8 @@
 # original
 data/
 exp/
-src/src/lightning_logs/
-src/src/nohup.out
+lightning_logs/
+nohup.out
 kill_process.py
 *.ipynb
 
