@@ -24,7 +24,9 @@ def train(dirpath, debug=False):
     np.random.seed(seed)
     
     epoch = config["train"]["epoch"]
-    if debug: epoch = 1
+    if debug:
+        epoch = 1
+        config["train"]["kfolds"] = 2
     kfolds = config["train"]["kfolds"]
     warmup_rate = config["train"]["warmup_rate"]
     using_mlm = config["train"]["using_mlm"]

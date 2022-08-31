@@ -24,12 +24,17 @@ def main(config, debug=False, ensemble=False, mlm=False):
     with open(os.path.join(dirname, "config.json"), "w") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
     
+    run_list = ["python"]
     if mlm:
-        subprocess.run(["python", dirname + "/run_mlm.py", "-d"])
+        run_list.append(dirname + "/run_mlm.py")
     elif ensemble:
-        subprocess.run(["python", dirname + "/run_ensemble.py", "-d"])
+        run_list.append(dirname + "/run_ensemble.py")
     else:
-        subprocess.run(["python", dirname + "/run_bert.py", "-d"])
+        run_list.append(dirname + "/run_bert.py")
+    
+    if debug:
+        run_list.append("-d")
+    subprocess.run(run_list)
     
     
     

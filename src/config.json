@@ -1,8 +1,8 @@
 {
     "train":{
         "valid_rate":0.25,
-        "kfolds":2,
-        "epoch":5,
+        "kfolds":5,
+        "epoch":3,
         "batch_size":16,
         "warmup_rate":100,
         "gpu":1,

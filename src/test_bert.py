@@ -15,6 +15,8 @@ def test(dirpath, debug=False, ckpt_name=None):
     dirpath = dirpath + "/results"
     gpu = config["train"]["gpu"]
     seed = config["train"]["seed"]
+    if debug:
+        config["train"]["kfolds"] = 2
     kfolds = config["train"]["kfolds"]
     all_weight = config["test"]["all_weight"]
     if ckpt_name is None:
