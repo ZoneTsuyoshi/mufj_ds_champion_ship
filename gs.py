@@ -13,12 +13,12 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
         flatten_config.update(config[key])
 
     gpu_id = config["train"]["gpu"]
-    model_dict = {"xlm-roberta-base":{"batch_size":16},
-                 "xlm-roberta-large":{"batch_size":8},
-                 "bert-base-multilingual-uncased":{"batch_size":16}}
-    
-    gs_dict = {
-        "loss":["FL", "CE"]}
+    model_dict = {"xlm-roberta-base":{"bs":16},
+                 "xlm-roberta-large":{"bs":8},
+                 "bert-base-multilingual-uncased":{"bs":16}}
+    model_list = ["xlm-roberta-base", "xlm-roberta-large", "bert-base-multilingual-uncased"]
+    bs_list = [model_dict[m]["bs"] for m in model_list]
+    gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "gpu":[0,1,2]}}
 
 
     gs_key = list(gs_dict.keys()) # list of keys for grid search
@@ -36,10 +36,7 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
     if mlm: dirpath += "m"
 
     start_id = 1
-    if debug:
-        if os.path.exists(dirpath + str(start_id)):
-            shutil.rmtree(dirpath + str(start_id))
-    else:
+    if not debug:
         while os.path.exists(dirpath + str(start_id)):
             start_id += 1
 

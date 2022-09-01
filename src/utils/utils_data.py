@@ -126,8 +126,7 @@ def get_test_data(config, debug=False):
     design_var_list = config["train"]["design_var"]
     
     test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
-    if debug:
-        test_df = test_df.iloc[:32,:]
+    if debug: test_df = test_df.iloc[:32,:]
     test_texts = remove_html_tags(test_df["html_content"].values)
     transform_goal(test_df)
     test_design_var = get_design_var(test_df, design_var_list).astype("float32")

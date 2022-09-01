@@ -53,6 +53,7 @@ def train(dirpath, debug=False):
         adv_start_epoch = adv_start_epoch if adv_start_epoch>=1 else int(adv_start_epoch * epoch)
         mlm_path = f"../m{mlm_id}/fold{fold_id}" if using_mlm else None
         model = LitBertForSequenceClassification(**config["network"], dirpath=dirpath, fold_id=fold_id, design_dim=design_dim, weight=weight, num_warmup_steps=warmup_steps, num_training_steps=total_steps, mlm_path=mlm_path, adv_start_epoch=adv_start_epoch)
+        print(model)
         checkpoint = pl.callbacks.ModelCheckpoint(monitor=f'valid_loss{fold_id}' if valid_loader is not None else f"train_loss{fold_id}", mode='min', save_last=True, save_top_k=1, save_weights_only=True, dirpath=dirpath, filename=f"fold{fold_id}_best")
         checkpoint.CHECKPOINT_NAME_LAST = f"fold{fold_id}_last"
         trainer = pl.Trainer(accelerator="gpu", devices=[gpu], max_epochs=epoch, gradient_clip_val=gradient_clip_val, callbacks=[checkpoint], logger=logger)

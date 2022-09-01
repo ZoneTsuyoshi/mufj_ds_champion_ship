@@ -34,7 +34,8 @@ class SequenceClassification(nn.Module):
 
 
 class LitBertForSequenceClassification(pl.LightningModule):
-    def __init__(self, model_name:str, dirpath, lr:float=0.001, design_dim:int=10, hidden_dim:int=50, hidden_layers:int=2, 
+    def __init__(self, model_name:str, dirpath, lr:float=0.001, lr_decay:float=None,  
+                 design_dim:int=10, hidden_dim:int=50, hidden_layers:int=2, mlp_lr:float=1e-3,
                  activation_class:str="ReLU", dropout:float=0., weight_decay:float=0.01, 
                  beta1:float=0.9, beta2:float=0.99, epsilon:float=1e-8, gradient_clipping:float=1.0,
                  loss:str="CEL", gamma:float=1, alpha:float=1, lb_smooth:float=0.1, weight:torch.tensor=None,
@@ -47,7 +48,7 @@ class LitBertForSequenceClassification(pl.LightningModule):
 
         # load BERT model
         self.sc_model = SequenceClassification(model_name, dropout, design_dim, hidden_dim, hidden_layers, getattr(nn, activation_class), mlm_path)
-        self.metrics = tm.MetricCollection([tm.AUROC(num_classes=1, multiclass=False), tm.F1Score(num_classes=1, multiclass=False)])
+        self.metrics = tm.MetricCollection([tm.F1Score(num_classes=2, ignore_index=0, average="macro", mdmc_average=None)])
         self.loss_fn = get_loss_fn(loss, gamma, alpha, lb_smooth, weight)
         self.adversarial_training = at is not None
         if self.adversarial_training:
@@ -120,7 +121,7 @@ class LitBertForSequenceClassification(pl.LightningModule):
     
         
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay,
+        optimizer = torch.optim.AdamW(self._get_optimizers_grouped_parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay,
                                      betas=(self.hparams.beta1, self.hparams.beta2), eps=self.hparams.epsilon)
         if self.hparams.scheduler is None:
             return optimizer
@@ -131,4 +132,18 @@ class LitBertForSequenceClassification(pl.LightningModule):
         return [optimizer], [scheduler]
     
     
+    def _get_optimizers_grouped_parameters(self):
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [{"params": [p for n, p in self.sc_model.named_parameters() if "mlp" in n or "final" in n],
+                                         "weight_decay": 0.0, "lr": self.hparams.mlp_lr}]
+        layers = [self.sc_model.bert.embeddings] + list(self.sc_model.bert.encoder.layer)
+        layers.reverse()
+        lr = self.hparams.lr
+        for layer in layers:
+            lr *= self.hparams.lr_decay
+            optimizer_grouped_parameters += [{"params": [p for n, p in layer.named_parameters() if not any(nd in n for nd in no_decay)],
+                                              "weight_decay": self.hparams.weight_decay, "lr": lr},
+                                             {"params": [p for n, p in layer.named_parameters() if any(nd in n for nd in no_decay)],
+                                              "weight_decay": 0.0,  "lr": lr}]
+        return optimizer_grouped_parameters
         

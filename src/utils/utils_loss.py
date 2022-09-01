@@ -30,6 +30,7 @@ class FocalLoss(nn.Module):
         cross_entropy = self.bce(input_, target)
         # input_prob = torch.gather(F.softmax(input_, 1), 1, target.unsqueeze(1))
         difficulty_level = self._estimate_difficulty_level(input_, target)
+        # print(cross_entropy.shape, difficulty_level.shape)
         loss = difficulty_level * cross_entropy
         return torch.mean(loss) if self.reduction == 'mean' else torch.sum(loss) if self.reduction == 'sum' else loss
     

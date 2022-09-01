@@ -8,14 +8,13 @@ def main(config, debug=False, ensemble=False, mlm=False, dirpath=None):
         if ensemble: dirpath += "e"
         if mlm: dirpath += "m"
 
-        if debug:
-            if os.path.exists(dirpath):
-                shutil.rmtree(dirpath)
-        else:
+        if not debug:
             i = 1
             while os.path.exists(dirpath + str(i)):
                 i += 1
             dirpath += str(i)
+    if debug and os.path.exists(dirpath):
+        shutil.rmtree(dirpath)
     print("set directory {}".format(dirpath))
     
     shutil.copytree("src", dirpath)
