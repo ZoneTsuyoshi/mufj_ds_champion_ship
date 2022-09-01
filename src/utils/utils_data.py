@@ -64,6 +64,7 @@ def get_train_data(config, debug=False):
     batch_size = config["train"]["batch_size"]
     kfolds = config["train"]["kfolds"]
     seed = config["train"]["seed"]
+    st_cat1_on = config["train"]["st_cat1_on"]
     design_var_list = config["train"]["design_var"]
     da_method = config["train"]["da"]
     mask_ratio = config["train"]["mask_ratio"]
@@ -73,14 +74,15 @@ def get_train_data(config, debug=False):
     train_texts = remove_html_tags(train_df["html_content"].values)
     train_labels = train_df["state"].values
     train_df["fold"] = np.zeros(len(train_df), dtype=int)
-    train_df["cleanted_text"] = train_texts
+    train_df["cleaned_text"] = train_texts
     transform_goal(train_df)
     train_design_var = get_design_var(train_df, design_var_list).astype("float32")
     design_dim = train_design_var.shape[1]
     train_df.index = range(len(train_df))
     
     skf = StratifiedKFold(n_splits=kfolds, random_state=seed, shuffle=True)
-    for i, (train_indices, valid_indices) in enumerate(skf.split(train_texts, train_labels)):
+    st_var = train_df["category1"].values + train_labels.astype(str) if st_cat1_on else train_labels
+    for i, (train_indices, valid_indices) in enumerate(skf.split(train_texts, st_var)):
         train_df.loc[valid_indices, "fold"] = i
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -203,18 +205,18 @@ def transform_goal(df):
 
             
 def get_design_var(df, design_var_list="all"):
-    if design_var_list=="all": design_var_list = ["goal", "duration", "category1", "category2"]
+    if design_var_list in ["a", "all"]: design_var_list = "gd12"
     
     design_var = []
-    if "goal" in design_var_list:
+    if "g" in design_var_list:
         design_var.append(np.log10(df["goal"].values.astype(float)[:,None]/1000)/2)
-    if "duration" in design_var_list:
+    if "d" in design_var_list:
         design_var.append(df["duration"].values.astype(float)[:,None]/90)
-    if "category1" in design_var_list:
+    if "1" in design_var_list:
         category_list = ['art', 'comics', 'crafts', 'dance', 'design', 'fashion', 'film & video', 'food', 'games', 'journalism', 
                          'music', 'photography', "publishing", "technology", 'theater']
         design_var.append(OneHotEncoder(categories=[category_list], sparse=False).fit_transform(df["category1"].values.reshape(-1,1)))
-    if "category2" in design_var_list:
+    if "2" in design_var_list:
         category_list = ['mixed media', 'restaurants', 'performance art', 'webseries',
                        'plays', 'classical music', 'public art', 'metal',
                        'country & folk', 'diy electronics', 'footwear', 'art books',
@@ -247,26 +249,44 @@ def get_design_var(df, design_var_list="all"):
                        'space exploration', 'pet fashion', 'blues', 'printing', 'nature',
                        'translations', 'stationery', 'literary spaces', 'letterpress',
                        'social practice', 'toys']
-        design_var.append(OneHotEncoder(categories=[category_list], sparse=False).fit_transform(df["category2"].values.reshape(-1,1)))
+        design_var.append(OneHotEncoder(categories=[category_list], sparse=False).fit_transform(df["category2"].values.reshape(-1,1))[:,:-1])
     return np.concatenate(design_var, axis=1)
             
                 
 
 def adjust_text(text, parser="lxml"):
-    new_text = bs4.BeautifulSoup(text, parser).get_text()
-    delete_list = ["\n", "\xa0", "//", 
-                   "このコンテンツを表示するにはHTML5対応のブラウザが必要です。", "動画を再生", "音ありでリプレイ", "音声ありで  再生", "00:00"]
-    sub_list = [["/+", "/"], ["\.+", "."], ["-+", "-"], [" +", " "]]
+    new_text = bs4.BeautifulSoup(text, parser).get_text().lower()
+    delete_list = ["\n", "\t", "\xa0", "//", "_", "*",
+                   "このコンテンツを表示するにはHTML5対応のブラウザが必要です。", "このコンテンツを表示するにはhtml5対応のブラウザが必要です。",
+                   "動画を再生", "音ありでリプレイ", "音声ありで  再生", "00:00",
+                   "この動画はエンコード中です", "数分後にもう一度確認して見てください！"]
+    sub_list = [["/+", "/"], ["\.+", ". "], ["-+", "-"], [":+", ":"], ["ー+", "ー"], [" +", " "]]
+    ret_list = [["http", "homepage"], ["www", "homepage"]]
+    domain_list = ["com", "edu", "go", "mil", "net", "info"]
     for t in delete_list:
         new_text = new_text.replace(t, " ")
+    for r in ret_list:
+        if r[0] in new_text:
+            words = new_text.split(" ")
+            for j,w in enumerate(words):
+                if r[0] in w:
+                    words[j] = r[1]
+            new_text = " ".join(words)
+    for d in domain_list:
+        if "."+d in new_text:
+            words = new_text.split(" ")
+            for j,w in enumerate(words):
+                if "."+d in w:
+                    words[j] = w.split(".")[0]
+            new_text = " ".join(words)
     for t in sub_list:
         new_text = re.sub(t[0], t[1], new_text)
-    if "http" in new_text or "www" in new_text:
-        words = new_text.split(" ")
-        for j,w in enumerate(words):
-            if "http" in w or "www" in w:
-                words[j] = "URL"
-        new_text = " ".join(words)
+    if len(new_text)>0:
+        if new_text[0]==" ":
+            new_text = new_text[1:]
+    if len(new_text)>0:
+        if new_text[-1]==" ":
+            new_text = new_text[:-1]
     return new_text
     
     

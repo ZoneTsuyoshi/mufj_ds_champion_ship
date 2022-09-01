@@ -13,8 +13,12 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
         flatten_config.update(config[key])
 
     gpu_id = config["train"]["gpu"]
-
-    gs_dict = {"loss":["FL", "CE"]}
+    model_dict = {"xlm-roberta-base":{"batch_size":16},
+                 "xlm-roberta-large":{"batch_size":8},
+                 "bert-base-multilingual-uncased":{"batch_size":16}}
+    
+    gs_dict = {
+        "loss":["FL", "CE"]}
 
 
     gs_key = list(gs_dict.keys()) # list of keys for grid search
