@@ -44,7 +44,7 @@ def test(dirpath, debug=False, ckpt_name=None):
     test_weights = np.ones(kfolds) if len(test_probs)==kfolds else np.concatenate([np.ones(kfolds), all_weight * np.ones(1)])
     test_probs = (np.array(test_probs) * test_weights[:,None]).sum(0) / (all_weight + kfolds)
     np.save(os.path.join(dirpath, "test_aggregated_probs.npy"), test_probs)
-    labels_predicted = test_probs >= 0.5
+    labels_predicted = (test_probs >= 0.5).astype(int)
     df = pd.DataFrame(labels_predicted.reshape(-1,1))
     df.index = test_index
     df.to_csv(os.path.join(dirpath, "submission.csv"), header=False, index=True)

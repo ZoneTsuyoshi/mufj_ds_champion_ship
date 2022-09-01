@@ -40,7 +40,7 @@ class FocalLoss(nn.Module):
         :return:
         """
         prob = F.sigmoid(input_)
-        input_prob = target*prob + (1-target)*prob
+        input_prob = target*prob + (1-target)*(1-prob)
         difficulty_level = torch.pow(1 - input_prob, self.gamma)
         return difficulty_level
     

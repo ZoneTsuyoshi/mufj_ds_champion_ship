@@ -1,1 +1,6 @@
-# mufj_ds_champion_ship
+# MUFJ Data Science Champion Ship
+
+## Score
+|id|CV|LB|PLB|
+|----|----|----|----|
+|1|0.659|0.641||

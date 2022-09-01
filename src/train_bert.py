@@ -63,7 +63,7 @@ def train(dirpath, debug=False):
             valid_probs[valid_indices] = torch.cat(trainer.predict(model, valid_loader)).detach().cpu().numpy()
     df["valid_probs"] = valid_probs
     df["valid_preds"] = (valid_probs>=0.5).astype(int)
-    df.to_csv(os.path.join(dirpath, "results.csv"))
+    df.to_csv(os.path.join(dirpath, "valid_data.csv"))
     logger.log_metrics({"f1":metrics.f1_score(df["state"].values, df["valid_preds"].values)})
     logger.log_metrics({"auroc":metrics.roc_auc_score(df["state"].values, valid_probs)})
     plot_confusion_matrix(df, logger)
