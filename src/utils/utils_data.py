@@ -24,7 +24,9 @@ class MyDataset(Dataset):
     
     
     def __getitem__(self, index: int):
-        encoding = {"input_ids":self.input_ids[index], "attention_mask":self.attention_mask[index], "design_var":self.design_var[index]}
+        encoding = {"input_ids":self.input_ids[index], "attention_mask":self.attention_mask[index]}
+        if self.design_var is not None:
+            encoding["design_var"] = self.design_var[index]
         if self.labels is not None:
             encoding["labels"] = self.labels[index]
         return encoding
@@ -65,19 +67,19 @@ def get_train_data(config, debug=False):
     kfolds = config["train"]["kfolds"]
     seed = config["train"]["seed"]
     st_cat1_on = config["train"]["st_cat1_on"]
+    concat_var_list = config["train"]["concat_var"]
     design_var_list = config["train"]["design_var"]
     da_method = config["train"]["da"]
     mask_ratio = config["train"]["mask_ratio"]
     random.seed(seed)
     
     train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
-    train_texts = remove_html_tags(train_df["html_content"].values)
+    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values), train_df, concat_var_list)
     train_labels = train_df["state"].values
     train_df["fold"] = np.zeros(len(train_df), dtype=int)
     train_df["cleaned_text"] = train_texts
     transform_goal(train_df)
-    train_design_var = get_design_var(train_df, design_var_list).astype("float32")
-    design_dim = train_design_var.shape[1]
+    train_design_var, design_dim = get_design_var(train_df, design_var_list)
     train_df.index = range(len(train_df))
     
     skf = StratifiedKFold(n_splits=kfolds, random_state=seed, shuffle=True)
@@ -95,8 +97,8 @@ def get_train_data(config, debug=False):
         if debug:
             train_indices = train_indices[:32]
             valid_indices = valid_indices[:32]
-        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], train_design_var[train_indices], train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
-        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], train_design_var[valid_indices], train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
+        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], train_design_var[train_indices] if design_dim>0 else None, train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], train_design_var[valid_indices] if design_dim>0 else None, train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
         valid_labels.append(train_labels[valid_indices])
         valid_indices_list.append(valid_indices)
         if weight_on: 
@@ -123,15 +125,15 @@ def get_train_data(config, debug=False):
 def get_test_data(config, debug=False):
     model_name = config["network"]["model_name"]
     batch_size = config["train"]["batch_size"]
+    concat_var_list = config["train"]["concat_var"]
     design_var_list = config["train"]["design_var"]
     
     test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
     if debug: test_df = test_df.iloc[:32,:]
-    test_texts = remove_html_tags(test_df["html_content"].values)
+    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values), text_df, concat_var_list)
     transform_goal(test_df)
-    test_design_var = get_design_var(test_df, design_var_list).astype("float32")
+    test_design_var, design_dim = get_design_var(test_df, design_var_list)
     test_index = test_df.index
-    # design_dim = test_design_var.shape[1]
     
     # tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -139,6 +141,28 @@ def get_test_data(config, debug=False):
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return test_loader, test_index
+
+
+def concat_text_with_other_infos(texts, df, concat_var_list="gd12"):
+    """
+    texts: ndarray
+    df: dataframe
+    """
+    extract_list = []
+    if "g" in concat_var_list: extract_list.append("goal")
+    if "d" in concat_var_list: extract_list.append("duration")
+    if "1" in concat_var_list: extract_list.append("category1")
+    if "2" in concat_var_list: extract_list.append("category2")
+    
+    if len(extract_list)>0:
+        extract_var = df[extract_list].values.astype(str)
+        new_texts = []
+        for i,t in enumerate(texts):
+            new_texts.append(" ".join(extract_var[i]) + " " + t)
+        return new_texts
+    else:
+        return texts
+            
     
     
     
@@ -155,22 +179,26 @@ def embed_and_augment(tokenizer, texts, design_var=None, labels=None, da_method=
     
     encoding = tokenizer(texts.tolist(), **tokenizer_setting)
     if labels is None:
-        encoding["design_var"] = torch.from_numpy(design_var)
+        if design_var is not None:
+            encoding["design_var"] = torch.from_numpy(design_var)
     else:
         encoding["labels"] = torch.tensor(labels.tolist())
         if da_method is None:
-            encoding["design_var"] = torch.from_numpy(design_var)
+            if design_var is not None:
+                encoding["design_var"] = torch.from_numpy(design_var)
         else:
             input_ids = [i for i in encoding["input_ids"]]
             attention_mask = [i for i in encoding["attention_mask"]]
-            new_design_var = [i for i in design_var]
+            if design_var is not None:
+                new_design_var = [i for i in design_var]
             new_labels = labels.tolist()
             unique_labels, counts = np.unique(labels, return_counts=True)
             max_count = counts.max()
 
             for u, c in zip(unique_labels, counts):
                 now_texts = texts[labels==u]
-                now_design_var = design_var[labels==u]
+                if design_var is not None:
+                    now_design_var = design_var[labels==u]
                 counter = c
                 inner_counter = 0
                 while counter < max_count:
@@ -186,12 +214,13 @@ def embed_and_augment(tokenizer, texts, design_var=None, labels=None, da_method=
                     input_ids.append(current_input_ids)
                     attention_mask.append(encoding["attention_mask"][0])
                     new_labels.append(u)
-                    new_design_var.append(now_design_var[inner_counter])
+                    if design_var is not None:
+                        new_design_var.append(now_design_var[inner_counter])
                     inner_counter += 1
                     if inner_counter == c:
                         inner_counter = 0
                     counter += 1
-            encoding = {"input_ids":torch.stack(input_ids), "attention_mask":torch.stack(attention_mask), "labels":torch.tensor(new_labels), "design_var":torch.tensor(new_design_var)}
+            encoding = {"input_ids":torch.stack(input_ids), "attention_mask":torch.stack(attention_mask), "labels":torch.tensor(new_labels), "design_var":torch.tensor(new_design_var) if design_var is not None else None}
     return encoding
 
 
@@ -249,7 +278,11 @@ def get_design_var(df, design_var_list="all"):
                        'translations', 'stationery', 'literary spaces', 'letterpress',
                        'social practice', 'toys']
         design_var.append(OneHotEncoder(categories=[category_list], sparse=False).fit_transform(df["category2"].values.reshape(-1,1))[:,:-1])
-    return np.concatenate(design_var, axis=1)
+    if len(design_var)>0:
+        design_var = np.concatenate(design_var, axis=1).astype("float32")
+        return design_var, design_var.shape[1]
+    else:
+        return None, 0
             
                 
 

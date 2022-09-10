@@ -18,7 +18,9 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
                  "bert-base-multilingual-uncased":{"bs":16}}
     model_list = ["xlm-roberta-base", "xlm-roberta-large", "bert-base-multilingual-uncased"]
     bs_list = [model_dict[m]["bs"] for m in model_list]
-    gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "gpu":[0,1,2]}}
+    # gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "gpu":[0,1,2]}}
+    gs_dict = {"mlp_lr":[1e-5, 1e-4, 1e-3], "hidden_layers":[1,2], "dropout":[0,0.1],
+              "mix":{"lr":[1e-5, 1e-4, 1e-3], "gpu":[0,1,2]}}
 
 
     gs_key = list(gs_dict.keys()) # list of keys for grid search
