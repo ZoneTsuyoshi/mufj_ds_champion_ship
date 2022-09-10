@@ -12,7 +12,7 @@ from transformers import AutoTokenizer
         
 
 class MyDataset(Dataset):
-    def __init__(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, design_var:torch.Tensor, labels:torch.Tensor=None):
+    def __init__(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, design_var:torch.Tensor=None, labels:torch.Tensor=None):
         self.input_ids = input_ids
         self.attention_mask = attention_mask
         self.design_var = design_var
@@ -69,17 +69,18 @@ def get_train_data(config, debug=False):
     st_cat1_on = config["train"]["st_cat1_on"]
     concat_var_list = config["train"]["concat_var"]
     design_var_list = config["train"]["design_var"]
+    remove_non_english = config["train"]["remove_non_english"]
     da_method = config["train"]["da"]
     mask_ratio = config["train"]["mask_ratio"]
     random.seed(seed)
     
     train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
-    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values), train_df, concat_var_list)
+    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list)
     train_labels = train_df["state"].values
     train_df["fold"] = np.zeros(len(train_df), dtype=int)
     train_df["cleaned_text"] = train_texts
     transform_goal(train_df)
-    train_design_var, design_dim = get_design_var(train_df, design_var_list)
+    design_var, design_dim = get_design_var(train_df, design_var_list)
     train_df.index = range(len(train_df))
     
     skf = StratifiedKFold(n_splits=kfolds, random_state=seed, shuffle=True)
@@ -97,8 +98,8 @@ def get_train_data(config, debug=False):
         if debug:
             train_indices = train_indices[:32]
             valid_indices = valid_indices[:32]
-        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], train_design_var[train_indices] if design_dim>0 else None, train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
-        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], train_design_var[valid_indices] if design_dim>0 else None, train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
+        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], design_var[train_indices] if design_dim>0 else None, train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], design_var[valid_indices] if design_dim>0 else None, train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
         valid_labels.append(train_labels[valid_indices])
         valid_indices_list.append(valid_indices)
         if weight_on: 
@@ -109,8 +110,9 @@ def get_train_data(config, debug=False):
     if debug:
         train_texts = train_texts[:32]
         train_labels = train_labels[:32]
-        train_design_var = train_design_var[:32]
-    train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts, train_design_var, train_labels, da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+        if design_dim>0:
+            design_var = design_var[:32]
+    train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts, design_var, train_labels, da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
     valid_loader.append(None)
     valid_indices_list.append(None)
     valid_labels.append(None)
@@ -125,12 +127,13 @@ def get_train_data(config, debug=False):
 def get_test_data(config, debug=False):
     model_name = config["network"]["model_name"]
     batch_size = config["train"]["batch_size"]
+    remove_non_english = config["train"]["remove_non_english"]
     concat_var_list = config["train"]["concat_var"]
     design_var_list = config["train"]["design_var"]
     
     test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
     if debug: test_df = test_df.iloc[:32,:]
-    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values), text_df, concat_var_list)
+    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list)
     transform_goal(test_df)
     test_design_var, design_dim = get_design_var(test_df, design_var_list)
     test_index = test_df.index
@@ -159,7 +162,7 @@ def concat_text_with_other_infos(texts, df, concat_var_list="gd12"):
         new_texts = []
         for i,t in enumerate(texts):
             new_texts.append(" ".join(extract_var[i]) + " " + t)
-        return new_texts
+        return np.array(new_texts)
     else:
         return texts
             
@@ -286,17 +289,20 @@ def get_design_var(df, design_var_list="all"):
             
                 
 
-def adjust_text(text, parser="lxml"):
+def adjust_text(text, remove_non_english=True, parser="lxml"):
     new_text = bs4.BeautifulSoup(text, parser).get_text().lower()
     delete_list = ["\n", "\t", "\xa0", "//", "_", "*",
                    "このコンテンツを表示するにはHTML5対応のブラウザが必要です。", "このコンテンツを表示するにはhtml5対応のブラウザが必要です。",
                    "動画を再生", "音ありでリプレイ", "音声ありで  再生", "00:00",
                    "この動画はエンコード中です", "数分後にもう一度確認して見てください！"]
-    sub_list = [["/+", "/"], ["\.+", ". "], ["-+", "-"], [":+", ":"], ["ー+", "ー"], [" +", " "]]
-    ret_list = [["http", "homepage"], ["www", "homepage"]]
     domain_list = ["com", "edu", "go", "mil", "net", "info"]
+    ret_list = [["http", "homepage"], ["www", "homepage"]]
+    sub_list = [["/+", "/"], ["=+", "="], ["\.+", ". "], ["-+", "-"], [":+", ":"], ["ー+", "ー"], [" +", " "]]
+    rep_list = [[" .", "."]]
+    
     for t in delete_list:
         new_text = new_text.replace(t, " ")
+        
     for r in ret_list:
         if r[0] in new_text:
             words = new_text.split(" ")
@@ -304,6 +310,7 @@ def adjust_text(text, parser="lxml"):
                 if r[0] in w:
                     words[j] = r[1]
             new_text = " ".join(words)
+            
     for d in domain_list:
         if "."+d in new_text:
             words = new_text.split(" ")
@@ -311,6 +318,14 @@ def adjust_text(text, parser="lxml"):
                 if "."+d in w:
                     words[j] = w.split(".")[0]
             new_text = " ".join(words)
+            
+    if remove_non_english:
+        words = []
+        for w in re.split("[.!?。！？]", new_text):
+            if w.isascii():
+                words.append(w)
+        new_text = ". ".join(words)
+            
     for t in sub_list:
         new_text = re.sub(t[0], t[1], new_text)
     if len(new_text)>0:
@@ -319,11 +334,15 @@ def adjust_text(text, parser="lxml"):
     if len(new_text)>0:
         if new_text[-1]==" ":
             new_text = new_text[:-1]
+            
+    for r in rep_list:
+        new_text = new_text.replace(r[0], r[1])
+            
     return new_text
     
     
-def remove_html_tags(arr, parser="lxml"):
+def remove_html_tags(arr, remove_non_english=True, parser="lxml"):
     results = copy.deepcopy(arr)
     for i in range(len(results)):
-        results[i] = adjust_text(results[i], parser)
+        results[i] = adjust_text(results[i], remove_non_english, parser)
     return results

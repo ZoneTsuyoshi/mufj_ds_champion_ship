@@ -9,8 +9,9 @@
         "seed":0,
         "weight":false,
         "st_cat1_on":true,
-        "concat_var":"12",
-        "design_var":"gd1",
+        "concat_var":"gd12",
+        "design_var":"",
+        "remove_non_english":true,
         "da":null,
         "mask_ratio":0.1,
         "using_mlm":false,
@@ -19,7 +20,7 @@
     },
     
     "network":{
-        "model_name":"xlm-roberta-base",
+        "model_name":"roberta-base",
         "hidden_dim":50,
         "hidden_layers":2,
         "activation_class":"LeakyReLU",
