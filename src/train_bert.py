@@ -4,7 +4,7 @@ from sklearn import metrics
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from utils import get_train_data, LitBertForSequenceClassification, plot_confusion_matrix
+from utils import get_train_data, LitBertForSequenceClassification, plot_confusion_matrix, threshold_search
 
 def train(dirpath, debug=False):
     f = open(os.path.join(dirpath, "config.json"), "r")
@@ -65,7 +65,11 @@ def train(dirpath, debug=False):
     df["valid_probs"] = valid_probs
     df["valid_preds"] = (valid_probs>=0.5).astype(int)
     df.to_csv(os.path.join(dirpath, "valid_data.csv"))
-    logger.log_metrics({"f1":metrics.f1_score(df["state"].values, df["valid_preds"].values)})
-    logger.log_metrics({"auroc":metrics.roc_auc_score(df["state"].values, valid_probs)})
+    search_results = threshold_search(df["state"].values, df["valid_probs"].values)
+    logger.log_metrics({"f1-half":metrics.f1_score(df["state"].values, df["valid_preds"].values),
+                        "f1":search_results["f1"], "threshold":search_results["threshold"],
+                        "auroc":metrics.roc_auc_score(df["state"].values, valid_probs)})
+    with open(os.path.join(dirpath, "search_results.json"), "w") as f:
+        json.dump(search_results, f, indent=4, ensure_ascii=False)
     plot_confusion_matrix(df, logger)
         

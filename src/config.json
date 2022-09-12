@@ -2,25 +2,25 @@
     "train":{
         "valid_rate":0.25,
         "kfolds":5,
-        "epoch":5,
+        "epoch":4,
         "batch_size":16,
-        "warmup_rate":100,
+        "warmup_rate":0,
         "gpu":2,
         "seed":0,
         "weight":false,
         "st_cat1_on":true,
-        "concat_var":"gd12",
+        "concat_var":"gdc12",
         "design_var":"",
-        "remove_non_english":true,
+        "remove_non_english":false,
         "da":null,
         "mask_ratio":0.1,
         "using_mlm":false,
-        "mlm_id":6,
+        "mlm_id":0,
         "adv_start_epoch":1.0
     },
     
     "network":{
-        "model_name":"roberta-base",
+        "model_name":"microsoft/deberta-v3-base",
         "hidden_dim":50,
         "hidden_layers":2,
         "activation_class":"LeakyReLU",
@@ -29,7 +29,7 @@
         "alpha":2,
         "lb_smooth":0.1,
         "lr":2e-5,
-        "lr_decay":0.95,
+        "lr_decay":1.0,
         "mlp_lr":1e-3,
         "dropout":0.1,
         "weight_decay":0.01,
@@ -37,7 +37,7 @@
         "beta1":0.9,
         "beta2":0.999,
         "epsilon":1e-6,
-        "scheduler":"linear",
+        "scheduler":null,
         "at":null,
         "adv_lr":1.0,
         "adv_eps":1e-3,
@@ -45,8 +45,8 @@
     },
     
     "test":{
-        "ckpt": "last",
-        "all_weight": 2
+        "ckpt": "best",
+        "all_weight": 0
     },
     
     "exp":{

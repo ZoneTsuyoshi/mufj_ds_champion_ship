@@ -29,12 +29,13 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
     bs_list = [model_dict[m]["bs"] for m in model_list]
     wd_list = [model_dict[m]["wd"] for m in model_list]
     ep_list = [model_dict[m]["ep"] for m in model_list]
-    gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "weight_decay":wd_list, "epoch":ep_list},
-               "loss":["CE"],
-               "at":[None, "AWP"],
-               "mix2":{"lr":[1e-5, 2e-5, 3e-5], "gpu":[0,1,2]}}
+    # gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "weight_decay":wd_list, "epoch":ep_list},
+    #            "loss":["CE"],
+    #            "at":[None, "AWP"],
+    #            "mix2":{"lr":[1e-5, 2e-5, 3e-5], "gpu":[0,1,2]}}
     # gs_dict = {"mlp_lr":[1e-5, 1e-4, 1e-3], "hidden_layers":[1,2], "dropout":[0,0.1],
     #           "mix":{"lr":[1e-5, 1e-4, 1e-3], "gpu":[0,1,2]}}
+    gs_dict = {"mix":{"gpu":[0,1], "remove_non_english":[True, False]}}
 
 
     gs_key = list(gs_dict.keys()) # list of keys for grid search

@@ -74,8 +74,9 @@ def get_train_data(config, debug=False):
     mask_ratio = config["train"]["mask_ratio"]
     random.seed(seed)
     
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
-    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list)
+    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list, tokenizer.sep_token)
     train_labels = train_df["state"].values
     train_df["fold"] = np.zeros(len(train_df), dtype=int)
     train_df["cleaned_text"] = train_texts
@@ -88,9 +89,7 @@ def get_train_data(config, debug=False):
     for i, (train_indices, valid_indices) in enumerate(skf.split(train_texts, st_var)):
         train_df.loc[valid_indices, "fold"] = i
     
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     train_loader, valid_loader, valid_labels, valid_indices_list, weight = [], [], [], [], []
-    
     all_indices = np.arange(len(train_df))
     for i in range(kfolds):
         train_indices = all_indices[train_df["fold"]!=i]
@@ -131,22 +130,22 @@ def get_test_data(config, debug=False):
     concat_var_list = config["train"]["concat_var"]
     design_var_list = config["train"]["design_var"]
     
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
     if debug: test_df = test_df.iloc[:32,:]
-    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list)
+    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list, tokenizer.sep_token)
     transform_goal(test_df)
     test_design_var, design_dim = get_design_var(test_df, design_var_list)
     test_index = test_df.index
     
     # tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     test_dataset = MyDataset(**embed_and_augment(tokenizer, test_texts, test_design_var))
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return test_loader, test_index
 
 
-def concat_text_with_other_infos(texts, df, concat_var_list="gd12"):
+def concat_text_with_other_infos(texts, df, concat_var_list="gdc12", sep=";"):
     """
     texts: ndarray
     df: dataframe
@@ -154,6 +153,7 @@ def concat_text_with_other_infos(texts, df, concat_var_list="gd12"):
     extract_list = []
     if "g" in concat_var_list: extract_list.append("goal")
     if "d" in concat_var_list: extract_list.append("duration")
+    if "c" in concat_var_list: extract_list.append("country")
     if "1" in concat_var_list: extract_list.append("category1")
     if "2" in concat_var_list: extract_list.append("category2")
     
@@ -161,7 +161,7 @@ def concat_text_with_other_infos(texts, df, concat_var_list="gd12"):
         extract_var = df[extract_list].values.astype(str)
         new_texts = []
         for i,t in enumerate(texts):
-            new_texts.append(" ".join(extract_var[i]) + " " + t)
+            new_texts.append(sep.join(extract_var[i]) + sep + t)
         return np.array(new_texts)
     else:
         return texts
@@ -243,6 +243,10 @@ def get_design_var(df, design_var_list="all"):
         design_var.append(np.log10(df["goal"].values.astype(float)[:,None]/1000)/2)
     if "d" in design_var_list:
         design_var.append(df["duration"].values.astype(float)[:,None]/90)
+    if "c" in design_var_list:
+        category_list = ['US', 'CA', 'FR', 'GB', 'IT', 'AU', 'DE', 'SE', 'NO', 'DK', 'SG',
+                        'BE', 'ES', 'MX', 'AT', 'NL', 'NZ', 'HK', 'CH', 'IE', 'JP', 'LU']
+        design_var.append(OneHotEncoder(categories=[category_list], sparse=False).fit_transform(df["country"].values.reshape(-1,1)))
     if "1" in design_var_list:
         category_list = ['art', 'comics', 'crafts', 'dance', 'design', 'fashion', 'film & video', 'food', 'games', 'journalism', 
                          'music', 'photography', "publishing", "technology", 'theater']
