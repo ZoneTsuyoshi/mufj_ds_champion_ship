@@ -76,11 +76,11 @@ def get_train_data(config, debug=False):
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
+    transform_goal(train_df)
     train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list, tokenizer.sep_token)
     train_labels = train_df["state"].values
     train_df["fold"] = np.zeros(len(train_df), dtype=int)
     train_df["cleaned_text"] = train_texts
-    transform_goal(train_df)
     design_var, design_dim = get_design_var(train_df, design_var_list)
     train_df.index = range(len(train_df))
     
@@ -159,6 +159,8 @@ def concat_text_with_other_infos(texts, df, concat_var_list="gdc12", sep=";"):
     
     if len(extract_list)>0:
         extract_var = df[extract_list].values.astype(str)
+        if "g" in concat_var_list:
+            extract_var[:,0] = (df["goal"].values.astype(int)/1000).astype(int).astype(str)
         new_texts = []
         for i,t in enumerate(texts):
             new_texts.append(sep.join(extract_var[i]) + sep + t)

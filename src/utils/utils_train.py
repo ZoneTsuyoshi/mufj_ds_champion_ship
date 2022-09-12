@@ -19,22 +19,27 @@ class SequenceClassification(nn.Module):
             self.bert = AutoModel.from_pretrained(mlm_path)
         
         self.using_design_var = design_dim>0
+        self.using_mlp = hidden_layers>0
         if self.using_design_var:
-            self.mlp = [nn.Linear(design_dim, hidden_dim)]
-            for _ in range(hidden_layers-1):
-                self.mlp += [activation_class(), nn.Linear(hidden_dim, hidden_dim)]
-            self.mlp = nn.Sequential(*self.mlp)
-            self.final = nn.Linear(bert_config.hidden_size + hidden_dim, 1)
+            if self.using_mlp:
+                self.mlp = [nn.Linear(design_dim, hidden_dim)]
+                for _ in range(hidden_layers-1):
+                    self.mlp += [activation_class(), nn.Linear(hidden_dim, hidden_dim)]
+                self.mlp = nn.Sequential(*self.mlp)
+                self.final = nn.Linear(bert_config.hidden_size + hidden_dim, 1)
+            else:
+                self.final = nn.Linear(bert_config.hidden_size + design_dim, 1)
         else:
             self.final = nn.Linear(bert_config.hidden_size, 1)
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, input_ids, attention_mask, design_var=None, token_type_ids=None):
-        bout = self.bert(input_ids, attention_mask, token_type_ids)[0][:,0]
+        bout = self.dropout(self.bert(input_ids, attention_mask, token_type_ids)[0][:,0])
         if self.using_design_var:
-            dout = self.mlp(design_var)
-            bout = torch.cat([bout, dout], dim=-1)
-        return self.final(self.dropout(bout))[:,0]
+            if self.using_mlp:
+                design_var = self.mlp(design_var)
+            bout = torch.cat([bout, design_var], dim=-1)
+        return self.final(bout)[:,0]
         
 
 
@@ -141,7 +146,7 @@ class LitBertForSequenceClassification(pl.LightningModule):
     def _get_optimizers_grouped_parameters(self):
         no_decay = ["bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [{"params": [p for n, p in self.sc_model.named_parameters() if "mlp" in n or "final" in n],
-                                        "weight_decay": 0.0, "lr": self.hparams.mlp_lr if self.hparams.design_dim>1 else self.hparams.lr}]
+                                        "weight_decay": 0.0, "lr": self.hparams.mlp_lr if self.hparams.design_dim>1 and self.hparams.hidden_layers>0 else self.hparams.lr}]
             
         layers = [self.sc_model.bert.embeddings] + list(self.sc_model.bert.encoder.layer)
         layers.reverse()
