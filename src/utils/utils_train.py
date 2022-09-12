@@ -99,9 +99,10 @@ class LitBertForSequenceClassification(pl.LightningModule):
         opt.step()
         self.log(f'train_loss{self.hparams.fold_id}', loss, on_step=True, on_epoch=True, logger=True)
         sch = self.lr_schedulers()
-        sch.step()
-        lr = float(sch.get_last_lr()[0])
-        self.log('lr', lr, on_step=True, on_epoch=True, prog_bar=False, logger=True)
+        if sch is not None:
+            sch.step()
+            lr = float(sch.get_last_lr()[0])
+            self.log('lr', lr, on_step=True, on_epoch=True, prog_bar=False, logger=True)
         return loss, logits
         
         

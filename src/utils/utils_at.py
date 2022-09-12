@@ -30,7 +30,7 @@ class AWP(AT):
             self._attack_step()
             with torch.cuda.amp.autocast():
                 logits = self.model(input_ids, attention_mask, token_type_ids)
-                adv_loss = self.criterion(logits, labels)
+                adv_loss = self.criterion(logits, labels.float())
             optimizer.zero_grad()
         return adv_loss
     
@@ -78,7 +78,7 @@ class FGM(AT):
     def attack_backward(self, input_ids, attention_mask, token_type_ids=None, labels=None, optimizer=None, epoch=0):
         self._attack()
         logits = self.model(input_ids, attention_mask, token_type_ids)
-        return self.criterion(logits, labels)
+        return self.criterion(logits, labels.float())
         
         
     def _attack(self):
