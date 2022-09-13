@@ -23,7 +23,7 @@ for key in config.keys():
 parser = argparse.ArgumentParser(description="subprocess for grid search")
 parser.add_argument("-d", action="store_true", help="debug")
 parser.add_argument("-m", action="store_true", help="mlm")
-parser.add_argument("-p", action="store_true", help="pseudo labeling")
+parser.add_argument("-p", default=None, nargs="*", help="pseudo labeling")
 
 for key in flatten_config.keys():
     if type(flatten_config[key])==bool:
