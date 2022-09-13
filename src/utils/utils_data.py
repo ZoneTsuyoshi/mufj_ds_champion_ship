@@ -133,8 +133,8 @@ def get_test_data(config, debug=False):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
     if debug: test_df = test_df.iloc[:32,:]
-    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list, tokenizer.sep_token)
     transform_goal(test_df)
+    test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list, tokenizer.sep_token)
     test_design_var, design_dim = get_design_var(test_df, design_var_list)
     test_index = test_df.index
     
