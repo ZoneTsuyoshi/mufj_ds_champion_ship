@@ -4,7 +4,7 @@
         "kfolds":5,
         "epoch":4,
         "batch_size":16,
-        "warmup_rate":0,
+        "warmup_rate":50,
         "gpu":2,
         "seed":0,
         "weight":false,
@@ -38,7 +38,7 @@
         "beta2":0.999,
         "epsilon":1e-6,
         "scheduler":null,
-        "at":"fgm",
+        "at":null,
         "adv_lr":1.0,
         "adv_eps":1e-3,
         "adv_steps":1

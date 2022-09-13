@@ -23,6 +23,7 @@ for key in config.keys():
 parser = argparse.ArgumentParser(description="subprocess for grid search")
 parser.add_argument("-d", action="store_true", help="debug")
 parser.add_argument("-m", action="store_true", help="mlm")
+parser.add_argument("-p", action="store_true", help="pseudo labeling")
 
 for key in flatten_config.keys():
     if type(flatten_config[key])==bool:
@@ -58,4 +59,4 @@ for top_key in config.keys():
         else:
             new_config[top_key][key] = new_flatten_config[key]
             
-main(new_config, args.d, False, args.m, new_flatten_config["dirpath"])
+main(new_config, args.d, False, args.m, args.p, new_flatten_config["dirpath"])

@@ -3,7 +3,7 @@ import multiprocessing as mp
 import numpy as np
 
     
-def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_queues=3, minimum_memory=1500):
+def gs_main(debug=False, mlm=False, pseudo_labeling=False, parallel_strategy_on=False, max_parallel_queues=3, minimum_memory=1500):
     f = open("src/config.json", "r")
     config = json.load(f)
     f.close()
@@ -11,33 +11,31 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
     flatten_config = {}
     for key in config.keys():
         flatten_config.update(config[key])
-
+    
     gpu_id = config["train"]["gpu"]
-    model_dict = {"microsoft/deberta-v3-large":{"bs":8, "wd":0.01, "ep":3},
-                  "roberta-large":{"bs":8, "wd":0.1, "ep":3},
-                  "microsoft/deberta-large":{"bs":4, "wd":0.01, "ep":3},
-                  "xlnet-large-cased":{"bs":4, "wd":0.01, "ep":3},
-                  "roberta-base":{"bs":16, "wd":0.1, "ep":5},
-                  "microsoft/deberta-v3-base":{"bs":16, "wd":0.01, "ep":5}, 
-                  "microsoft/deberta-base":{"bs":16, "wd":0.01, "ep":5},
-                  "xlnet-base-cased":{"bs":16, "wd":0.01, "ep":5},
-                  "xlm-roberta-base":{"bs":16, "wd":0.1, "ep":5},
-                  "xlm-roberta-large":{"bs":8, "wd":0.1, "ep":3},
-                  "bert-base-multilingual-uncased":{"bs":16, "wd":0.01, "ep":5}}
-    # model_list = ["xlm-roberta-base", "xlm-roberta-large", "bert-base-multilingual-uncased"]
-    model_list = ["roberta-base", "microsoft/deberta-v3-base", "microsoft/deberta-base", "roberta-large", "microsoft/deberta-v3-large", "microsoft/deberta-large"]
+    model_dict = {"microsoft/deberta-v3-large":{"bs":8, "wd":0.01, "ep":3, "rne":True},
+                  "roberta-large":{"bs":8, "wd":0.1, "ep":3, "rne":True},
+                  "microsoft/deberta-large":{"bs":4, "wd":0.01, "ep":3, "rne":True},
+                  "xlnet-large-cased":{"bs":4, "wd":0.01, "ep":3, "rne":True},
+                  "roberta-base":{"bs":16, "wd":0.1, "ep":4, "rne":True},
+                  "microsoft/deberta-v3-base":{"bs":16, "wd":0.01, "ep":4, "rne":True}, 
+                  "microsoft/deberta-base":{"bs":16, "wd":0.01, "ep":4, "rne":True},
+                  "xlnet-base-cased":{"bs":16, "wd":0.01, "ep":4, "rne":True},
+                  "xlm-roberta-base":{"bs":16, "wd":0.1, "ep":4, "rne":False},
+                  "xlm-roberta-large":{"bs":8, "wd":0.1, "ep":4, "rne":False},
+                  "bert-base-multilingual-uncased":{"bs":16, "wd":0.01, "ep":4, "rne":False}}
+    model_list = ["xlm-roberta-base", "microsoft/deberta-base", "roberta-base"]
+    # model_list = ["roberta-base", "microsoft/deberta-v3-base", "microsoft/deberta-base", "roberta-large", "microsoft/deberta-v3-large", "microsoft/deberta-large"]
     bs_list = [model_dict[m]["bs"] for m in model_list]
     wd_list = [model_dict[m]["wd"] for m in model_list]
     ep_list = [model_dict[m]["ep"] for m in model_list]
-    # gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "weight_decay":wd_list, "epoch":ep_list},
-    #            "loss":["CE"],
-    #            "at":[None, "AWP"],
-    #            "mix2":{"lr":[1e-5, 2e-5, 3e-5], "gpu":[0,1,2]}}
+    rne_list = [model_dict[m]["rne"] for m in model_list]
+    gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "weight_decay":wd_list, "epoch":ep_list, "remove_non_english":rne_list, "gpu":[0,1,2]}}
     # gs_dict = {"mlp_lr":[1e-5, 1e-4, 1e-3], "hidden_layers":[1,2], "dropout":[0,0.1],
     #           "mix":{"lr":[1e-5, 1e-4, 1e-3], "gpu":[0,1,2]}}
-    # gs_dict = {"mix":{"gpu":[0,1], "remove_non_english":[True, False]}}
-    gs_dict = {"mix":{"at":[None, "awp", "awp", "fgm"], "adv_eps":[1e-2, 1e-3, 1e-2, 1e-2]},
-              "mix2":{"dropout":[0.0, 0.1, 0.15], "gpu":[0,1,2]}}
+    # gs_dict = {}
+    # gs_dict = {"mix":{"at":[None, "awp", "awp", "fgm"], "adv_eps":[1e-2, 1e-3, 1e-2, 1e-2]},
+    #           "mix2":{"dropout":[0.0, 0.1, 0.15], "gpu":[0,1,2]}}
 
 
     gs_key = list(gs_dict.keys()) # list of keys for grid search
@@ -109,6 +107,7 @@ def gs_main(debug=False, mlm=False, parallel_strategy_on=False, max_parallel_que
         parse_element = ["python", "parse.py"] + flatten_config_to_parse(config_element)
         if debug: parse_element.append("-d")
         if mlm: parse_element.append("-m")
+        if pseudo_labeling: parse_element.append("-p")
         total_parse_list.append(parse_element)
     
     
@@ -152,9 +151,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Main Routine for Swithing Trajectory Network', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-d", action="store_true", help="debug")
     parser.add_argument("-m", action="store_true", help="mlm")
+    parser.add_argument("-p", action="store_true", help="pseudo labeling")
     parser.add_argument("-s", action="store_true", help="not parallel")
     parser.add_argument("-q", "--queue", type=int, default=3, help="max queue")
     parser.add_argument("-M", "--memory", type=int, default=2000, help="minimum memory (store)")
     args = parser.parse_args()
     
-    gs_main(args.d, args.m, not args.s, args.queue, args.memory)
+    gs_main(args.d, args.m, args.p, not args.s, args.queue, args.memory)

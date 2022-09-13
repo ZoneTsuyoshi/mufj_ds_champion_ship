@@ -1,4 +1,4 @@
-import bs4, copy, re, random
+import bs4, copy, re, random, json
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
@@ -33,33 +33,7 @@ class MyDataset(Dataset):
     
     
     
-    
-def get_train_data_for_mlm(config, debug=False):
-    seed = config["base"]["seed"]
-    kfolds = config["base"]["kfolds"]
-    model_name = config["base"]["model_name"]
-    
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    train_dataset, valid_dataset = [], []
-    
-    if "fold" in return_dataset:
-        train_df = pd.read_csv(f"../data/{kfolds}fold-seed{seed}.csv", index_col=0)
-        train_texts = train_df["description"].values
-        all_indices = np.arange(len(train_df))
-        for i in range(kfolds):
-            train_indices = all_indices[train_df["fold"]!=i]
-            valid_indices = all_indices[train_df["fold"]==i]
-            train_dataset.append(DescriptionDataset(**embed_and_augment(tokenizer, train_texts[train_indices])))
-            valid_dataset.append(DescriptionDataset(**embed_and_augment(tokenizer, train_texts[valid_indices])))
-    if "all" in return_dataset:
-        train_df = pd.read_csv("../data/train.csv", index_col=0) # id, description, jopflag
-        train_texts = adjust_texts(train_df["description"].values)
-        train_dataset.append(DescriptionDataset(**embed_and_augment(tokenizer, train_texts)))
-        valid_dataset.append(None)
-    return train_dataset, valid_dataset
-    
-    
-def get_train_data(config, debug=False):
+def get_train_data(config, debug=False, pseudo_labeling_vars=None):
     model_name = config["network"]["model_name"]
     weight_on = config["train"]["weight"]
     valid_rate = config["train"]["valid_rate"]
@@ -73,21 +47,44 @@ def get_train_data(config, debug=False):
     da_method = config["train"]["da"]
     mask_ratio = config["train"]["mask_ratio"]
     random.seed(seed)
+    pseudo_labeling = pseudo_labeling_vars is not None
+    if pseudo_labeling:
+        exp_id = pseudo_labeling_vars[0]
+        confidence = float(pseudo_labeling_vars[1])
+        with open(f"exp/{exp_id}/results/search_results.json", "r") as f:
+            search_results = json.load(f)
+        threshold = search_results["threshold"]
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
-    transform_goal(train_df)
-    train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list, tokenizer.sep_token)
-    train_labels = train_df["state"].values
-    train_df["fold"] = np.zeros(len(train_df), dtype=int)
-    train_df["cleaned_text"] = train_texts
-    design_var, design_dim = get_design_var(train_df, design_var_list)
-    train_df.index = range(len(train_df))
+    if pseudo_labeling:
+        train_df = pd.read_csv(f"exp/{exp_id}/results/valid_data.csv", index_col=0)
+        train_texts = train_df["cleaned_text"].values
+        train_labels = train_df["state"].values
+        train_design_var, design_dim = get_design_var(train_df, design_var_list)
+        train_df.index = range(len(train_df))
+        
+        test_df = pd.read_csv("data/test.csv", index_col=0)
+        test_probs = np.load(f"exp/{exp_id}/results/test_probs.npy") #(kfolds+1,ns)
+        if debug:
+            test_df = test_df.iloc[:32,:]
+            test_probs = test_probs[:,:32]
+        transform_goal(test_df)
+        test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list, tokenizer.sep_token)
+        test_design_var, _ = get_design_var(test_df, design_var_list)
+    else:
+        train_df = pd.read_csv("data/train.csv", index_col=0) # id, description, jopflag
+        transform_goal(train_df)
+        train_texts = concat_text_with_other_infos(remove_html_tags(train_df["html_content"].values, remove_non_english), train_df, concat_var_list, tokenizer.sep_token)
+        train_labels = train_df["state"].values
+        train_df["fold"] = np.zeros(len(train_df), dtype=int)
+        train_df["cleaned_text"] = train_texts
+        train_design_var, design_dim = get_design_var(train_df, design_var_list)
+        train_df.index = range(len(train_df))
     
-    skf = StratifiedKFold(n_splits=kfolds, random_state=seed, shuffle=True)
-    st_var = train_df["category1"].values + train_labels.astype(str) if st_cat1_on else train_labels
-    for i, (train_indices, valid_indices) in enumerate(skf.split(train_texts, st_var)):
-        train_df.loc[valid_indices, "fold"] = i
+        skf = StratifiedKFold(n_splits=kfolds, random_state=seed, shuffle=True)
+        st_var = train_df["category1"].values + train_labels.astype(str) if st_cat1_on else train_labels
+        for i, (train_indices, valid_indices) in enumerate(skf.split(train_texts, st_var)):
+            train_df.loc[valid_indices, "fold"] = i
     
     train_loader, valid_loader, valid_labels, valid_indices_list, weight = [], [], [], [], []
     all_indices = np.arange(len(train_df))
@@ -97,8 +94,12 @@ def get_train_data(config, debug=False):
         if debug:
             train_indices = train_indices[:32]
             valid_indices = valid_indices[:32]
-        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], design_var[train_indices] if design_dim>0 else None, train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
-        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], design_var[valid_indices] if design_dim>0 else None, train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
+        if pseudo_labeling:
+            test_indices = np.any([test_probs[i]>=confidence, test_probs[i]<=1-confidence], axis=0)
+            train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, np.concatenate([train_texts[train_indices], test_texts[test_indices]]), np.concatenate([train_design_var[train_indices], test_design_var[test_indices]]) if design_dim>0 else None, np.concatenate([train_labels[train_indices], (test_probs[i]>=threshold).astype(int)[test_indices]]), da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+        else:
+            train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[train_indices], train_design_var[train_indices] if design_dim>0 else None, train_labels[train_indices], da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+        valid_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts[valid_indices], train_design_var[valid_indices] if design_dim>0 else None, train_labels[valid_indices])), batch_size=batch_size, shuffle=False))
         valid_labels.append(train_labels[valid_indices])
         valid_indices_list.append(valid_indices)
         if weight_on: 
@@ -110,8 +111,12 @@ def get_train_data(config, debug=False):
         train_texts = train_texts[:32]
         train_labels = train_labels[:32]
         if design_dim>0:
-            design_var = design_var[:32]
-    train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts, design_var, train_labels, da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+            train_design_var = train_design_var[:32]
+    if pseudo_labeling:
+        test_indices = np.any([test_probs[-1]>=confidence, test_probs[-1]<=1-confidence], axis=0)
+        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, np.concatenate([train_texts, test_texts[test_indices]]), np.concatenate([train_design_var, test_design_var[test_indices]]) if design_dim>0 else None, np.concatenate([train_labels, (test_probs[-1]>=threshold).astype(int)[test_indices]]), da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
+    else:
+        train_loader.append(DataLoader(MyDataset(**embed_and_augment(tokenizer, train_texts, train_design_var, train_labels, da_method, mask_ratio)), batch_size=batch_size, shuffle=True))
     valid_loader.append(None)
     valid_indices_list.append(None)
     valid_labels.append(None)
@@ -131,7 +136,7 @@ def get_test_data(config, debug=False):
     design_var_list = config["train"]["design_var"]
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    test_df = pd.read_csv("data/test.csv", index_col=0)# id, description
+    test_df = pd.read_csv("data/test.csv", index_col=0)
     if debug: test_df = test_df.iloc[:32,:]
     transform_goal(test_df)
     test_texts = concat_text_with_other_infos(remove_html_tags(test_df["html_content"].values, remove_non_english), test_df, concat_var_list, tokenizer.sep_token)

@@ -6,10 +6,11 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from utils import get_train_data, LitBertForSequenceClassification, plot_confusion_matrix, threshold_search
 
-def train(dirpath, debug=False):
+def train(dirpath, debug=False, pseudo_labeling_vars=None):
     f = open(os.path.join(dirpath, "config.json"), "r")
     config = json.load(f)
     f.close()
+    
     
     dirpath = dirpath + "/results"
     os.mkdir(dirpath)
@@ -39,11 +40,13 @@ def train(dirpath, debug=False):
     if manual_optimization: gradient_clip_val = None
     ckpt_name = config["test"]["ckpt"] # best / last
     
-    train_loader_list, valid_loader_list, valid_labels_list, valid_indices_list, weight_list, design_dim, df = get_train_data(config, debug)
+    train_loader_list, valid_loader_list, valid_labels_list, valid_indices_list, weight_list, design_dim, df = get_train_data(config, debug, pseudo_labeling_vars)
     logger = pl.loggers.CometLogger(workspace=os.environ.get("zonetsuyoshi"), save_dir=dirpath, project_name="mufj-dscs")
     flatten_config = {}
     for key in config.keys():
         flatten_config.update(config[key])
+    if pseudo_labeling_vars is not None:
+        flatten_config["confidence"] = pseudo_labeling_vars[1]
     logger.log_hyperparams(flatten_config)
     valid_probs = np.zeros(len(df))
     for i, (train_loader, valid_loader, valid_labels, valid_indices, weight) in enumerate(zip(train_loader_list, valid_loader_list, valid_labels_list, valid_indices_list, weight_list)):
