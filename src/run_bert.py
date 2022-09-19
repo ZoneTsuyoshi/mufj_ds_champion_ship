@@ -1,11 +1,23 @@
-import os, json, argparse
-from train_bert import train
-from test_bert import test
+import os, json, argparse, subprocess
+# from train_bert import train
+# from test_bert import test
 
 def main(debug=False, pseudo_labeling=None):
     dirpath = os.path.dirname(__file__)
-    train(dirpath, debug, pseudo_labeling)
-    test(dirpath, debug)
+    train_list = ["python", dirpath + "/train_bert.py"]
+    test_list = ["python", dirpath + "/test_bert.py"]
+    if debug:
+        train_list.append("-d")
+        test_list.append("-d")
+    if pseudo_labeling is not None:
+        train_list += ["-p"] + pseudo_labeling
+        
+    subprocess.run(train_list)
+    subprocess.run(test_list)
+        
+    # dirpath = os.path.dirname(__file__)
+    # train(dirpath, debug, pseudo_labeling)
+    # test(dirpath, debug)
     
     
     

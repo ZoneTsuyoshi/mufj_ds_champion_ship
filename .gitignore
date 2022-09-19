@@ -4,6 +4,7 @@ exp/
 lightning_logs/
 nohup.out
 kill_process.py
+rm_dir.py
 *.ipynb
 
 # Byte-compiled / optimized / DLL files

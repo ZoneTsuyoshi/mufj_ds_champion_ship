@@ -1,4 +1,4 @@
-import os, json
+import os, json, argparse
 import numpy as np
 from sklearn import metrics
 import torch
@@ -76,3 +76,12 @@ def train(dirpath, debug=False, pseudo_labeling_vars=None):
         json.dump(search_results, f, indent=4, ensure_ascii=False)
     plot_confusion_matrix(df, logger)
         
+        
+        
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='bert', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-d", action="store_true", help="debug")
+    parser.add_argument("-p", default=None, nargs="*", help="pseudo labeling, 1st: exp_id, 2nd: confidence")
+    args = parser.parse_args()
+    dirpath = os.path.dirname(__file__)
+    train(dirpath, args.d, args.p)
