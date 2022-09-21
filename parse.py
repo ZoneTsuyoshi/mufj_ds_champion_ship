@@ -59,4 +59,4 @@ for top_key in config.keys():
         else:
             new_config[top_key][key] = new_flatten_config[key]
             
-main(new_config, args.d, False, args.m, args.p, new_flatten_config["dirpath"])
+main(new_config, args.d, None, args.m, args.p, new_flatten_config["dirpath"])

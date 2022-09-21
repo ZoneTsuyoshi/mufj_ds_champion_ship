@@ -24,15 +24,15 @@ def gs_main(debug=False, mlm=False, pseudo_labeling=None, parallel_strategy_on=F
                   "xlm-roberta-base":{"bs":16, "wd":0.1, "ep":5, "rne":False},
                   "xlm-roberta-large":{"bs":8, "wd":0.1, "ep":3, "rne":False},
                   "bert-base-multilingual-uncased":{"bs":16, "wd":0.01, "ep":5, "rne":False}}
-    # model_list = ["xlm-roberta-base", "microsoft/deberta-v3-base", "roberta-base"]
-    model_list = ["roberta-large", "microsoft/deberta-v3-large", "xlm-roberta-large", "microsoft/deberta-large"]
+    model_list = ["roberta-base", "microsoft/deberta-base", "xlm-roberta-base"]
+    # model_list = ["roberta-large", "microsoft/deberta-v3-large", "xlm-roberta-large", "microsoft/deberta-large"]
     bs_list = [model_dict[m]["bs"] for m in model_list]
     wd_list = [model_dict[m]["wd"] for m in model_list]
     ep_list = [model_dict[m]["ep"] for m in model_list]
     rne_list = [model_dict[m]["rne"] for m in model_list]
     gs_dict = {"mix":{"model":model_list, "batch_size":bs_list, "weight_decay":wd_list, "epoch":ep_list, "remove_non_english":rne_list},
               "scheduler":[None],
-              "at":[None, "awp"],
+              "at":["awp", "fgm"],
               "mix3":{"dropout":[0, 0.1, 0.15], "gpu":[0,1,2]}}
     # gs_dict = {"mlp_lr":[1e-5, 1e-4, 1e-3], "hidden_layers":[1,2], "dropout":[0,0.1],
     #           "mix":{"lr":[1e-5, 1e-4, 1e-3], "gpu":[0,1,2]}}
