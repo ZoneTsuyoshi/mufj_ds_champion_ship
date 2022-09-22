@@ -1,7 +1,7 @@
 import os, shutil, argparse, subprocess, json
 
 
-def main(config, debug=False, ensemble=None, mlm=False, pseudo_labeling=None, dirpath=None, gpu=None, ensemble_method="Nelder-Mead", ensemble_loss="f1", ensemble_threshold_search=False):
+def main(config, debug=False, ensemble=None, mlm=False, pseudo_labeling=None, dirpath=None, gpu=None, epoch=None, ensemble_method="Nelder-Mead", ensemble_loss="f1", ensemble_threshold_search=False):
     if dirpath is None:
         dirpath = "exp/"
         if debug: dirpath += "d"
@@ -23,6 +23,8 @@ def main(config, debug=False, ensemble=None, mlm=False, pseudo_labeling=None, di
     config["exp"]["dirpath"] = dirpath
     if gpu is not None:
         config["train"]["gpu"] = int(gpu)
+    if epoch is not None:
+        config["train"]["epoch"] = int(gpu)
     with open(os.path.join(dirpath, "config.json"), "w") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
     
@@ -51,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", action="store_true", help="mlm")
     parser.add_argument("-p", default=None, nargs="*", help="pseudo labeling, 1st: exp_id, 2nd: confidence")
     parser.add_argument("-g", type=int, default=None, help="gpu id")
+    parser.add_argument("-ep", type=int, default=None, help="epoch")
     
     parser.add_argument("-em", type=str, default="Nelder-Mead", help="ensemble method")
     parser.add_argument("-el", type=str, default="f1", help="ensemble loss")
@@ -63,4 +66,4 @@ if __name__ == "__main__":
         f = open(f"exp/{args.p[0]}/config.json", "r") 
     config = json.load(f)
     f.close()
-    main(config, args.d, args.e, args.m, args.p, None, args.g, args.em, args.el, args.et)
+    main(config, args.d, args.e, args.m, args.p, None, args.g, args.ep, args.em, args.el, args.et)
