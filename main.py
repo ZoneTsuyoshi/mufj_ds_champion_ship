@@ -24,7 +24,7 @@ def main(config, debug=False, ensemble=None, mlm=False, pseudo_labeling=None, di
     if gpu is not None:
         config["train"]["gpu"] = int(gpu)
     if epoch is not None:
-        config["train"]["epoch"] = int(gpu)
+        config["train"]["epoch"] = int(epoch)
     with open(os.path.join(dirpath, "config.json"), "w") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
     
@@ -32,7 +32,8 @@ def main(config, debug=False, ensemble=None, mlm=False, pseudo_labeling=None, di
     if mlm:
         run_list.append(dirpath + "/run_mlm.py")
     elif ensemble is not None:
-        run_list += [dirpath + "/run_ensemble.py", "-e"] + ensemble + ["-m", ensemble_method, "-l", ensemble_loss, "-t", ensemble_threshold_search]
+        run_list += [dirpath + "/run_ensemble.py", "-e"] + ensemble + ["-m", ensemble_method, "-l", ensemble_loss]
+        if ensemble_threshold_search: run_list.append("-t")
     else:
         run_list.append(dirpath + "/run_bert.py")
         if pseudo_labeling is not None:
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='copy and run', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--config", default="src/config.json", type=str, help="config")
     parser.add_argument("-d", action="store_true", help="debug")
-    parser.add_argument("-e", nargs="*", default=None, help="ensemble")
+    parser.add_argument("-e", nargs="*", default=None, type=str, help="ensemble")
     parser.add_argument("-m", action="store_true", help="mlm")
     parser.add_argument("-p", default=None, nargs="*", help="pseudo labeling, 1st: exp_id, 2nd: confidence")
     parser.add_argument("-g", type=int, default=None, help="gpu id")

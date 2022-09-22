@@ -62,4 +62,4 @@ if __name__ == "__main__":
     parser.add_argument("-e", default=None, nargs="*", help="ensemble names")
     args = parser.parse_args()
     dirpath = os.path.dirname(__file__)
-    train(dirpath, args.e, args.m, args.l, args.t, args.d)
+    main(dirpath, args.e, args.m, args.l, args.t, args.d)

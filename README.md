@@ -8,6 +8,7 @@
 |50|0.803|0.815||deberta-v3-base, 2e-5, sc=None|
 |51|0.808|0.820||deberta-v3-base, 2e-5, do=0, sc=None|
 |65|0.810|0.824||deberta-v3-base, 2e-5, do=0.15, FGM|
+|e5|0.817|0.829||65,65p1,98,98p1,104|
 
 
 ## Computation Time

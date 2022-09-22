@@ -43,7 +43,7 @@ def test(dirpath, debug=False, pseudo_labeling_vars=None, with_valid_on=False, c
             if os.path.exists(ckpt_path):
                 model = LitBertForSequenceClassification.load_from_checkpoint(ckpt_path)
                 test_probs.append(torch.cat(trainer.predict(model, test_loader)).detach().cpu().numpy())
-                if with_valid_on:
+                if with_valid_on and valid_loader_list[i] is not None:
                     valid_probs[valid_indices_list[i]] = torch.cat(trainer.predict(model, valid_loader_list[i])).detach().cpu().numpy()
         test_probs = np.array(test_probs)
         np.save(os.path.join(dirpath, "test_probs.npy"), test_probs)
@@ -55,9 +55,9 @@ def test(dirpath, debug=False, pseudo_labeling_vars=None, with_valid_on=False, c
         df["valid_preds"] = (valid_probs>=0.5).astype(int)
         df.to_csv(os.path.join(dirpath, "valid_data.csv"))
         search_results = threshold_search(df["state"].values, df["valid_probs"].values)
-        logger.log_metrics({"f1-half":metrics.f1_score(df["state"].values, df["valid_preds"].values),
-                            "f1":search_results["f1"], "threshold":search_results["threshold"],
-                            "auroc":metrics.roc_auc_score(df["state"].values, valid_probs)})
+        # logger.log_metrics({"f1-half":metrics.f1_score(df["state"].values, df["valid_preds"].values),
+        #                     "f1":search_results["f1"], "threshold":search_results["threshold"],
+        #                     "auroc":metrics.roc_auc_score(df["state"].values, valid_probs)})
         with open(os.path.join(dirpath, "search_results.json"), "w") as f:
             json.dump(search_results, f, indent=4, ensure_ascii=False)
             
@@ -77,12 +77,15 @@ def test(dirpath, debug=False, pseudo_labeling_vars=None, with_valid_on=False, c
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='bert', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-b", action="store_true", help="use best model instead of last model")
+    parser.add_argument("-b", action="store_true", help="use the best model")
+    parser.add_argument("-l", action="store_true", help="use the last model")
     parser.add_argument("-d", action="store_true", help="debug")
     parser.add_argument("-p", default=None, nargs="*", help="pseudo labeling, 1st: exp_id, 2nd: confidence")
     parser.add_argument("-v", action="store_true", help="with valid")
     parser.add_argument("-w", "--all_weight", default=None, type=float, help="weight of all training")
     args = parser.parse_args()
     dirpath = os.path.dirname(__file__)
-    ckpt_name = "best" if args.b else "last"
+    ckpt_name = None
+    if args.b: ckpt_name = "best"
+    if args.l: ckpt_name = "last"
     test(dirpath, args.d, args.p, args.v, ckpt_name)
